@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+
+import storage from "../../firebase";
 import "./newProduct.css";
 
 export default function NewProduct() {
@@ -8,10 +11,51 @@ export default function NewProduct() {
   const [imgSm, setImgSm] = useState(null);
   const [trailer, setTrailer] = useState(null);
   const [video, setVideo] = useState(null);
+  const [uploaded, setUploaded] = useState(0);
 
   const handleChange = (e) => {
     const value = e.target.value;
     setMovie({ ...movie, [e.target.name]: value });
+  };
+
+  const upload = (items) => {
+    items.forEach((item) => {
+      const fileName = new Date().getTime() + item.label + item.file.name;
+      const uploadTask = uploadBytesResumable(
+        ref(storage, `/items/${fileName}`),
+        item.file
+      );
+      uploadTask.on(
+        "state_changed",
+        (snapshot) => {
+          const progress =
+            (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          console.log(`Upload is ${progress}%`);
+        },
+        (err) => {
+          console.log(err);
+        },
+        () => {
+          getDownloadURL(uploadTask.snapshot.ref).then((url) => {
+            setMovie((prev) => {
+              return { ...prev, [item.label]: url };
+            });
+            setUploaded((prev) => prev + 1);
+          });
+        }
+      );
+    });
+  };
+
+  const handleUpload = (e) => {
+    e.preventDefault();
+    upload([
+      { file: img, label: "img" },
+      { file: imgTitle, label: "imgTitle" },
+      { file: imgSm, label: "imgSm" },
+      { file: trailer, label: "trailer" },
+      { file: video, label: "video" },
+    ]);
   };
 
   return (
@@ -116,9 +160,19 @@ export default function NewProduct() {
         </div>
         <div className="addProductItem">
           <label>Video</label>
-          <input type="file" name="video" />
+          <input
+            type="file"
+            name="video"
+            onChange={(e) => setVideo(e.target.files[0])}
+          />
         </div>
-        <button className="addProductButton">Create</button>
+        {uploaded === 5 ? (
+          <button className="addProductButton">Create</button>
+        ) : (
+          <button className="addProductButton" onClick={handleUpload}>
+            Upload
+          </button>
+        )}
       </form>
     </div>
   );
